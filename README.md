@@ -23,29 +23,38 @@ Setup
 bash
 git clone https://github.com/Dhayalramesh/agentic-competitive-brief.git
 cd agentic-competitive-brief
-pip install -r requirements.txt
+pip install -r Requirements.txt
 
-Requires Python 3.9+.
+Requires Python 3.9+. Designed to run in Google Colab (each notebook installs its own dependencies in its first cell) or any local Jupyter environment.
 
 Run
-bash
-python agent.py --company "Stripe"
 
-Or in a notebook/Colab, run the cells in agentic_competitive_brief.ipynb in order, and change the company variable in the last cell to any company name.
+Each notebook is a full, independently runnable copy of the agent, pointed at a different company — open any one of them and run all cells top to bottom:
 
-The agent will:
+Anthropic.ipynb — runs the agent against "Anthropic"
+openai.ipynb — runs the agent against "OpenAI"
+stripe.ipynb — runs the agent against "Stripe"
+
+To try a different company, open any notebook, find the line:
+
+python
+company = "Stripe"   # change to any company name
+
+change the string, and re-run all cells.
+
+Each run will:
 
 Print a visible plan before acting
-Print each tool call, its result, and any retries as it runs
+Print each tool call, its result, and any retries as it happens
 Print the final Markdown report
-Optionally save run_transcript.log, final_report.json, and final_report.md
+All output is saved inline in the notebook itself, so you can open any .ipynb on GitHub and see the full transcript without re-running it
 Deliberately induced failure
 
-Step 3 ("search for recent news") is seeded to raise a simulated TimeoutError on its first attempt only, to demonstrate the agent's error handling. Watch for this in the transcript — the agent logs the error, reformulates the query, retries, and recovers without crashing the run. This is marked recovered in the step status and called out in the final report.
+Step 3 ("search for recent news") is seeded to raise a simulated TimeoutError on its first attempt only, to demonstrate the agent's error handling. Watch for this in any of the notebook outputs — the agent logs the error, reformulates the query, retries, and recovers without crashing the run. This is marked recovered in the step status and called out in the final report.
 
 Sample runs
 
-See transcripts/ for 3 full sample runs (Anthropic, OpenAI, Stripe), each showing:
+Anthropic.ipynb, openai.ipynb, and stripe.ipynb each contain a full sample run with saved output, showing:
 
 The visible planning trace
 Two clean tool calls
@@ -62,12 +71,10 @@ Only one failure mode (timeout) is simulated; recovery strategy doesn't yet vary
 ddgs is a free, unauthenticated search backend — fine at this scale, not production-hardened
 Repo structure
 .
-├── agent.py                       # or agentic_competitive_brief.ipynb
-├── requirements.txt
+├── Anthropic.ipynb        # sample run: Anthropic
+├── openai.ipynb           # sample run: OpenAI
+├── stripe.ipynb           # sample run: Stripe
+├── Requirements.txt
 ├── architecture_diagram.svg
 ├── writeup.md
-├── transcripts/
-│   ├── anthropic_run.log
-│   ├── openai_run.log
-│   └── stripe_run.log
 └── README.md
