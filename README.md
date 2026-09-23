@@ -1,27 +1,73 @@
-Design Write-Up — Agentic AI Engineer Intern Take-Home
-What the system does
+agentic-competitive-brief
 
-Given a company name, the agent produces a competitive-landscape brief by (1) planning a fixed sequence of research steps, (2) executing them with two tools — web search and a calculator — (3) recovering from an induced failure, and (4) emitting a structured JSON and Markdown report.
+A small agentic AI system that takes a company name and produces a structured competitive-landscape brief. Built for the Agentic AI Engineer Intern take-home assignment.
 
-Design decisions
+Given a goal like "produce a competitive-landscape brief for Stripe", the agent:
 
-Rule-based planner over an LLM-based one. PlanningModule builds the step list with plain Python rather than prompting an LLM to generate it. This keeps the system runnable with zero API keys, makes the plan 100% deterministic and reproducible for grading, and keeps the planning logic easy to read and verify by inspection. The tradeoff is that the plan is templated per-goal-type rather than truly generative — it doesn't yet reason about which steps a given goal needs.
+Plans a sequence of concrete, tool-using steps (visible before execution)
+Executes each step, calling real tools (web search, calculator)
+Self-corrects when a step fails — retries with a reformulated query and backoff
+Reports a structured result as both JSON and Markdown
+Architecture
 
-ddgs for web search instead of hand-scraping DuckDuckGo HTML. An earlier version parsed lite.duckduckgo.com's raw HTML with BeautifulSoup; this broke the moment DuckDuckGo changed its markup (see transcript history — every search returned "no results found" until the fix). Switching to the ddgs package decouples the tool from DuckDuckGo's page structure and made every subsequent run reliable.
+See architecture_diagram.svg.
 
-A safe AST-based calculator instead of eval(). calculator_tool parses expressions with Python's ast module and only evaluates a whitelisted set of arithmetic operators (+ - * / **), so it can't execute arbitrary code — important once tool inputs may eventually come from an LLM rather than hardcoded strings.
+Goal → PlanningModule → ExecutionModule (tools + retry/self-correction loop) → ReportingModule → Report
+PlanningModule — decomposes the goal into an ordered list of Step objects, each naming a tool and its arguments. Rule-based (no LLM/API key required), so it's deterministic and reproducible.
+ExecutionModule — runs each step against the real tools. On failure, it logs the error, backs off, reformulates the query, and retries (up to max_retries) before marking the step failed and moving on.
+Tools:
+web_search_tool — live web search via the ddgs package
+calculator_tool — safe arithmetic evaluation via Python's ast module (no eval())
+ReportingModule — synthesizes the final structured report (JSON + Markdown) from the execution trace.
+Setup
+bash
+git clone https://github.com/Dhayalramesh/agentic-competitive-brief.git
+cd agentic-competitive-brief
+pip install -r requirements.txt
 
-Deliberate failure + retry with reformulation. Step 3 (the "recent news" search) is flagged to raise a simulated TimeoutError on its first attempt only. ExecutionModule catches any exception, logs it, waits with a short backoff, reformulates the query (e.g. appends the year) and retries up to max_retries times before marking the step failed and moving on rather than crashing the whole run. Steps are labeled success, recovered, or failed in the trace and in the final report, so the failure — and the recovery — are visible, not hidden.
+Requires Python 3.9+.
 
-Structured, dual-format output. ReportingModule builds one Python dict that's returned both as JSON (sources_collected, steps_failed, steps_recovered_via_retry, confidence_score) and as a rendered Markdown brief, so the same run produces both a machine-readable artifact and a human-readable one.
+Run
+bash
+python agent.py --company "Stripe"
+
+Or in a notebook/Colab, run the cells in agentic_competitive_brief.ipynb in order, and change the company variable in the last cell to any company name.
+
+The agent will:
+
+Print a visible plan before acting
+Print each tool call, its result, and any retries as it runs
+Print the final Markdown report
+Optionally save run_transcript.log, final_report.json, and final_report.md
+Deliberately induced failure
+
+Step 3 ("search for recent news") is seeded to raise a simulated TimeoutError on its first attempt only, to demonstrate the agent's error handling. Watch for this in the transcript — the agent logs the error, reformulates the query, retries, and recovers without crashing the run. This is marked recovered in the step status and called out in the final report.
+
+Sample runs
+
+See transcripts/ for 3 full sample runs (Anthropic, OpenAI, Stripe), each showing:
+
+The visible planning trace
+Two clean tool calls
+One simulated failure + successful retry/recovery
+The final structured report
+Design write-up
+
+See writeup.md for design decisions, limitations, and what I'd do differently with more time.
 
 Limitations
-The plan is a fixed 4-step template per goal; it doesn't adapt its steps based on what earlier steps returned (e.g. it doesn't search deeper if step 1 finds very little).
-confidence_score is currently a static formula and doesn't yet reflect how many steps actually succeeded vs. failed in that specific run.
-Only one failure mode is simulated (a timeout); the retry logic doesn't yet differentiate its recovery strategy by error type (e.g. a malformed-response error vs. a true timeout arguably call for different fixes).
-ddgs is a free, unauthenticated search backend and can rate-limit under heavy or rapid use — fine for this assignment's scale, not production-grade.
-What I'd do differently with more time
-Replace the rule-based planner with an LLM call (Claude/GPT) that reads the goal and proposes its own step sequence and tool arguments, with the current rule-based planner kept as a deterministic fallback/validator.
-Make confidence_score a genuine function of run outcomes (e.g. successes vs. failures, weighted by step importance) instead of a fixed formula.
-Add a third tool (e.g. a structured API call or a file reader) to broaden orchestration coverage per the rubric's "tool use & orchestration" criterion.
-Add lightweight unit tests for ExecutionModule's retry logic and calculator_tool's AST evaluator, and CI to run them on push.
+The plan is a fixed template per goal rather than dynamically generated per-goal by an LLM
+confidence_score is currently a static formula rather than derived from actual step outcomes
+Only one failure mode (timeout) is simulated; recovery strategy doesn't yet vary by error type
+ddgs is a free, unauthenticated search backend — fine at this scale, not production-hardened
+Repo structure
+.
+├── agent.py                       # or agentic_competitive_brief.ipynb
+├── requirements.txt
+├── architecture_diagram.svg
+├── writeup.md
+├── transcripts/
+│   ├── anthropic_run.log
+│   ├── openai_run.log
+│   └── stripe_run.log
+└── README.md
